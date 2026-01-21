@@ -26,6 +26,7 @@
 #include <migraphx/errors.hpp>
 #include <migraphx/gpu/pack_args.hpp>
 #include <cassert>
+#include <migraphx/half.hpp>
 
 #ifdef _WIN32
 #include <hip/hip_ext.h>
@@ -139,7 +140,92 @@ void kernel::launch(hipStream_t stream,
     void* kernargs   = reinterpret_cast<void*>(args.data());
     std::size_t size = args.bytes();
 
-    launch_kernel(impl->fun, stream, global, local, kernargs, size, start, stop);
+    if (args.size() == 5)
+    {
+        using migraphx::half;
+
+        size_t size_bytes = 1 * sizeof(half);
+
+        std::vector<half> in_q{half{1.2}};
+        std::vector<half> in_k{half{1.2}};
+        std::vector<half> in_v{half{1.2}};
+
+        // in_q
+        half* d_q_in{};
+        hipMalloc(&d_q_in, size_bytes);
+        hipMemcpy(d_q_in, in_q.data(), size_bytes, hipMemcpyHostToDevice);
+        void** dd_q_ptr = nullptr;
+        hipMalloc(&dd_q_ptr, sizeof(void*));
+        hipMemcpy(dd_q_ptr, &d_q_in, sizeof(void*), hipMemcpyHostToDevice);
+
+        // in_k
+        half* d_k_in{};
+        hipMalloc(&d_k_in, size_bytes);
+        hipMemcpy(d_k_in, in_k.data(), size_bytes, hipMemcpyHostToDevice);
+        void** dd_k_ptr = nullptr;
+        hipMalloc(&dd_k_ptr, sizeof(void*));
+        hipMemcpy(dd_k_ptr, &d_k_in, sizeof(void*), hipMemcpyHostToDevice);
+
+        // in_v
+        half* d_v_in{};
+        hipMalloc(&d_v_in, size_bytes);
+        hipMemcpy(d_v_in, in_v.data(), size_bytes, hipMemcpyHostToDevice);
+        void** dd_v_ptr = nullptr;
+        hipMalloc(&dd_v_ptr, sizeof(void*));
+        hipMemcpy(dd_v_ptr, &d_v_in, sizeof(void*), hipMemcpyHostToDevice);
+
+        // output
+        half* d_out{};
+        hipMalloc(&d_out, size_bytes);
+        void** dd_ptr = nullptr;
+        hipMalloc(&dd_ptr, sizeof(void*));
+        hipMemcpy(dd_ptr, &d_out, sizeof(void*), hipMemcpyHostToDevice);
+
+        // other inputs
+        constexpr int q_sequence_length  = 1;
+        constexpr int kv_sequence_lenght = 1;
+        constexpr int head_dim           = 2;
+        constexpr int batch_size         = 2;
+        constexpr int q_head_num         = 2;
+        constexpr int kv_head_num        = 2;
+        constexpr float scale            = 0.158114f;
+
+        size_t offset  = 0;
+        char new_k_args[256] = {};
+
+        *(reinterpret_cast<void***>(&new_k_args[offset])) = dd_q_ptr;
+        offset += sizeof(dd_q_ptr);
+        *(reinterpret_cast<void***>(&new_k_args[offset])) = dd_k_ptr;
+        offset += sizeof(dd_k_ptr);
+        *(reinterpret_cast<void***>(&new_k_args[offset])) = dd_v_ptr;
+        offset += sizeof(dd_v_ptr);
+
+        *(reinterpret_cast<void***>(&new_k_args[offset])) = dd_ptr;
+        offset += sizeof(dd_ptr);
+
+        *(reinterpret_cast<int*>(&new_k_args[offset])) = q_sequence_length;
+        offset += sizeof(q_sequence_length);
+        *(reinterpret_cast<int*>(&new_k_args[offset])) = kv_sequence_lenght;
+        offset += sizeof(kv_sequence_lenght);
+        *(reinterpret_cast<int*>(&new_k_args[offset])) = head_dim;
+        offset += sizeof(head_dim);
+        *(reinterpret_cast<int*>(&new_k_args[offset])) = head_dim;
+        offset += sizeof(head_dim);
+        *(reinterpret_cast<int*>(&new_k_args[offset])) = batch_size;
+        offset += sizeof(batch_size);
+        *(reinterpret_cast<int*>(&new_k_args[offset])) = q_head_num;
+        offset += sizeof(q_head_num);
+        *(reinterpret_cast<int*>(&new_k_args[offset])) = kv_head_num;
+        offset += sizeof(kv_head_num);
+        *(reinterpret_cast<float*>(&new_k_args[offset])) = scale;
+        offset += sizeof(scale);
+
+        launch_kernel(impl->fun, stream, global, local, new_k_args, offset, start, stop);
+    }
+    else
+    {
+        launch_kernel(impl->fun, stream, global, local, kernargs, size, start, stop);
+    }
 }
 
 void kernel::launch(hipStream_t stream,

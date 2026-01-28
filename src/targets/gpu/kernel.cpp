@@ -145,7 +145,7 @@ void kernel::launch(hipStream_t stream,
     {
          using migraphx::half;
 
-         size_t size_bytes = 1 * sizeof(half);
+         size_t size_bytes = 16384 * sizeof(half);
 
          std::vector<half> in_q{half{2.0}};
          std::vector<half> in_k{half{3.0}};
@@ -244,7 +244,7 @@ void kernel::launch(hipStream_t stream,
         // if(status2 != hipSuccess)
         //     MIGRAPHX_THROW("Failed to load module: " + hip_error(status));
 
-        launch_kernel(impl->fun, stream, 262144, local, new_k_args, offset, start, stop);
+        launch_kernel(impl->fun, stream, 256, local, new_k_args, offset, start, stop);
     }
     else
     {

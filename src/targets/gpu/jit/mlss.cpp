@@ -71,39 +71,22 @@ struct mlss_compiler : compiler<mlss_compiler>
 
         float scale = v.at("scale").to<float>();
 
-        std::string_view kernelName = multi_head_attention_unpacked_128_64x192x48_64x48x64_forward_no_strides_fp16_gfx1201.m_kernelName;
-        std::array<std::uint8_t, 64880> binaryData = multi_head_attention_unpacked_128_64x192x48_64x48x64_forward_no_strides_fp16_gfx1201.m_binary;
+        std::string_view kernelName = multi_head_attention_unpacked_128_64x64x48_64x48x64_forward_no_strides_fp16_gfx1201.m_kernelName;
+        std::array<std::uint8_t, 51064> binaryData = multi_head_attention_unpacked_128_64x64x48_64x48x64_forward_no_strides_fp16_gfx1201.m_binary;
 
         const auto& binary = binaryData[0];
 
         std::string kernel_name = std::string(kernelName);
-        size_t bin_size = 64880;
+        size_t bin_size = binaryData.size();
 
-        constexpr const char* module_file_name = "D:\\owen\\ModelInferencingScripts\\hip\\amdmlss_kernels\\mha\\multi_head_attention_unpacked_128_64x192x48_64x48x64_forward_no_strides_fp16-hip-amdgcn-amd-amdhsa-gfx1201.out";
-        std::ifstream file(module_file_name, std::ios::binary | std::ios::ate);
-        if(!file.is_open())
-        {
-            std::cout << "Failed to open file: " << module_file_name << "\n";
-        }
-
-        std::streamsize bin_size_file = file.tellg();
-        file.seekg(0, std::ios::beg);
-
-        std::vector<uint8_t> buffer(bin_size_file);
-
-        if(!file.read(reinterpret_cast<char*>(buffer.data()), bin_size_file))
-        {
-            throw std::runtime_error("Failed to read file");
-        }
-        bin_size = bin_size_file;
         //value::binary value_binary(binaryData.data(), bin_size);
-        value::binary value_binary(buffer.data(), bin_size);
+        value::binary value_binary(binaryData.data(), bin_size);
 
         auto nelements  = inputs.back().elements();
         auto block_size = compute_block_size(ctx, nelements, 256);
         hip_compile_options options;
         options.set_launch_params(
-            v, compute_global_for(ctx, nelements * block_size, 256), block_size);
+            v, compute_global_for(ctx, nelements * block_size, 128), block_size);
         options.output      = inputs.back();
         options.inputs      = inputs;
         options.kernel_name = kernel_name;

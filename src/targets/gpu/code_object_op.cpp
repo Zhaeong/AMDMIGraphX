@@ -66,6 +66,45 @@ static void visit_flatten_args(const std::vector<argument>& args, F f)
 argument
 code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
+    if(args.size() == 4)
+    {
+        for(int i = 0; i < args.size() - 1; i++)
+        {
+            auto first_arg = args[i];
+            auto shape     = first_arg.get_shape().lens();
+            auto strides     = first_arg.get_shape().strides();
+            char* dataa    = first_arg.data();
+            using migraphx::half;
+            //int size = 1 * 2 * 3 * 1 * sizeof(half);
+
+            int elem = 1 * 3 * 2 * 3 * 1;
+            int size = elem * sizeof(half);
+
+            std::vector<half> h_out(elem);
+            auto status = hipMemcpy(h_out.data(), dataa, size, hipMemcpyDeviceToHost);
+            if(status != hipSuccess)
+                MIGRAPHX_THROW("Failed to launch kernel: " + hip_error(status));
+            std::vector<float> float_conv(elem);
+
+            for(int j = 0; j < h_out.size(); j++)
+            {
+                float_conv[j] = h_out[j].to_float();
+            }
+        }
+
+        int out_elem = 1 * 2 * 3 * 1;
+        int out_size = out_elem * sizeof(half);
+
+        std::vector<half> h_output(out_elem);
+        for(int i = 0; i < h_output.size(); i++)
+        {
+            h_output[i] = half(5.0f);
+        }
+        char* out_data = args[3].data();
+        auto status    = hipMemcpy(out_data, h_output.data(), out_size, hipMemcpyHostToDevice);
+
+    }
+    //auto status = hipDeviceSynchronize();
 #if MIGRAPHX_HAS_PMR
     std::array<char, 256> storage;
     std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};

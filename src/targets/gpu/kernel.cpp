@@ -141,6 +141,14 @@ void kernel::launch(hipStream_t stream,
     void* kernargs   = reinterpret_cast<void*>(args.data());
     std::size_t size = args.bytes();
 
+    //if(args.size() == 26)
+    //{
+    //    std::vector<char> new_k_args = pack_args(args);
+    //    std::size_t size             = new_k_args.size();
+    //    launch_kernel(impl->fun, stream, 1024, 128, new_k_args.data(), size, start, stop);
+    //    return;
+    //}
+
     if (args.size() == 4)
     {
         return;
@@ -265,8 +273,14 @@ void kernel::launch(hipStream_t stream,
     assert(impl != nullptr);
     std::vector<char> kernargs = pack_args(args);
     std::size_t size           = kernargs.size();
-
-    launch_kernel(impl->fun, stream, global, local, kernargs.data(), size, start, stop);
+    if(args.size() == 26)
+    {
+         launch_kernel(impl->fun, stream, 1024, 128, kernargs.data(), size, start, stop);
+    }
+    else
+    {
+        launch_kernel(impl->fun, stream, global, local, kernargs.data(), size, start, stop);
+    }
     
 }
 

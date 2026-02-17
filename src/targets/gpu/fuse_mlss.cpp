@@ -127,11 +127,15 @@ void fuse_mlss::apply(module& m) const
                 instruction_ref output = m.insert_instruction(
                     ins, make_op("allocate", {{"shape", to_value(ins->get_shape())}}));
 
+                auto one = m.add_literal(7);
+
+
                 std::vector<instruction_ref> refs;
                 refs.push_back(input_query);
                 refs.push_back(input_key);
                 refs.push_back(input_value);
                 refs.push_back(scale_literal);
+                //refs.push_back(one);
                 refs.push_back(output);
 
                 m.replace_instruction(ins,

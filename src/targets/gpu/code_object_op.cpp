@@ -93,8 +93,9 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         auto query = args[0];
         auto query_strides = query.get_shape().strides();
 
-        auto query_elements = query.get_shape().elements();
+        
         std::size_t query_bytes = query.get_shape().bytes();
+        auto query_elements     = query_bytes / (sizeof(half));
         std::vector<half> query_out(query_elements);
         auto status_query = hipMemcpy(query_out.data(), query.data(), query_bytes, hipMemcpyDeviceToHost);
         if(status_query != hipSuccess)
@@ -106,10 +107,9 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         }
 
         auto key              = args[1];
-        auto key_strides        = key.get_shape().strides();
-
-        auto key_elements       = key.get_shape().elements();
+        auto key_strides        = key.get_shape().strides();        
         std::size_t key_bytes = key.get_shape().bytes();
+        auto key_elements     = key_bytes / (sizeof(half));
         std::vector<half> key_out(key_elements);
         auto status_key = hipMemcpy(key_out.data(), key.data(), key_bytes, hipMemcpyDeviceToHost);
         if(status_key != hipSuccess)
@@ -121,10 +121,9 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         }
 
         auto value              = args[2];
-        auto value_strides      = value.get_shape().strides();
-
-        auto value_elements     = value.get_shape().elements();
+        auto value_strides      = value.get_shape().strides();        
         std::size_t value_bytes = value.get_shape().bytes();
+        auto value_elements     = value_bytes / (sizeof(half));
         std::vector<half> value_out(value_elements);
         auto status_value =
             hipMemcpy(value_out.data(), value.data(), value_bytes, hipMemcpyDeviceToHost);

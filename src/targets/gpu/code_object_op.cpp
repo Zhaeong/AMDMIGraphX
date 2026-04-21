@@ -74,49 +74,12 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         auto query_shape   = query.get_shape().lens();
         int head_dim     = query_shape[3];
 
-
-        auto query_strides = query.get_shape().strides();
-                
-        // add 2 * head_dim to get the full
-        std::size_t query_bytes = query.get_shape().bytes() + (head_dim * 2 * sizeof(half));
-        auto query_elements     = query_bytes / (sizeof(half));
-        std::vector<half> query_out(query_elements);
-        auto status_query = hipMemcpy(query_out.data(), query.data(), query_bytes, hipMemcpyDeviceToHost);
-        if(status_query != hipSuccess)
-            MIGRAPHX_THROW("Failed to launch kernel: " + hip_error(status_query));
-        // std::vector<float> query_float_conv(query_elements);
-        // for(int j = 0; j < query_elements; j++)
-        // {
-        //     query_float_conv[j] = query_out[j].to_float();
-        // }
-
-        // ── Dump packed_q to hpp ────────────────────────────────────────
-        // {
-        //     const size_t query_float_size = query_float_conv.size();
-        //     std::ofstream f("packed_qkv_static_input.hpp");
-        //     f << "// Packed Q input" << "\n";
-        //     f << "// Total elements: " << query_float_size << "\n\n";
-        //     f << "static const float QKV_data[" << query_float_size << "] = {\n";
-        //     for (size_t i = 0; i < query_float_size; ++i) {
-        //         if (i % 8 == 0) f << "    ";
-        //         char buf[32];
-        //         std::snprintf(buf, sizeof(buf), "%.8ff", query_float_conv[i]);
-        //         f << buf;
-        //         if (i + 1 < query_float_size) f << ",";
-        //         if ((i + 1) % 8 == 0 || i + 1 == query_float_size)
-        //             f << "\n";
-        //         else
-        //             f << "    ";
-        //     }
-        //     f << "};\n";
-        //     std::cout << "packed_q_static written to packed_q_static.hpp (" << query_float_size << " elements)\n";
-        // }        
+        auto query_strides = query.get_shape().strides();                
 
         int batch_size         = query_shape[0];
         int q_sequence_length  = query_shape[2];
         int kv_sequence_length = query_shape[2];
-        int head_num           = query_shape[1];
-        
+        int head_num           = query_shape[1];        
 
         int B = batch_size;
         int H = head_num;
@@ -126,30 +89,19 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
 
         const int qn = batch_size*head_num*q_sequence_length*head_dim*3;   
 
-
-        // // ── GPU: upload contiguous fp16 tensors ───────────────────────────────────
-        // std::vector<half> hq(qn);        
-        // for (int i = 0; i < qn; ++i) hq[i] = migraphx::half(query_float_conv[i]);
-
-        hipDeviceptr_t dq, dk, dv, dout;
-        hipMalloc(&dq,   qn * sizeof(half));
-
-        hipMemcpy(dq, query_out.data(), qn * sizeof(half), hipMemcpyHostToDevice);
-
         auto scale              = args[3];        
 
         auto outval              = args[4];
         auto outval_strides     = outval.get_shape().strides();
         std::size_t outval_bytes = outval.get_shape().bytes();
 
-
-         std::vector<kernel_argument> kargs;
+        std::vector<kernel_argument> kargs;
 
         hipDeviceptr_t d_q_in    = query.data();
         hipDeviceptr_t* dd_q_ptr = nullptr;
         hipMalloc(&dd_q_ptr, sizeof(void*));
-        // hipMemcpy(dd_q_ptr, &d_q_in, sizeof(void*), hipMemcpyHostToDevice);
-        hipMemcpy(dd_q_ptr, &dq, sizeof(void*), hipMemcpyHostToDevice);
+        hipMemcpy(dd_q_ptr, &d_q_in, sizeof(void*), hipMemcpyHostToDevice);
+
         kargs.emplace_back(dd_q_ptr);
 
         hipDeviceptr_t d_out_in    = outval.data();
@@ -241,72 +193,32 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
 
         const int block = 128;
 
-
         auto [start, stop] = ctx.get_perf_events();
         // k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
         k.launch(ctx.get_stream().get(), grid, block, kargs, start, stop);
 
-        hipStreamSynchronize(ctx.get_stream().get());
+        // hipStreamSynchronize(ctx.get_stream().get());
 
-        auto out_elements = outval.get_shape().elements();
-        std::vector<half> h_out(out_elements);
+        // auto out_elements = outval.get_shape().elements();
+        // std::vector<half> h_out(out_elements);
 
-        auto status = hipMemcpy(h_out.data(), d_out_in, outval_bytes, hipMemcpyDeviceToHost);
-        if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to launch kernel: " + hip_error(status));
-        std::vector<float> out_float_conv(out_elements);
+        // auto status = hipMemcpy(h_out.data(), d_out_in, outval_bytes, hipMemcpyDeviceToHost);
+        // if(status != hipSuccess)
+        //     MIGRAPHX_THROW("Failed to launch kernel: " + hip_error(status));
+        // std::vector<float> out_float_conv(out_elements);
 
-        for(int j = 0; j < h_out.size(); j++)
-        {
-            out_float_conv[j] = h_out[j].to_float();
-        }
-
+        // for(int j = 0; j < h_out.size(); j++)
+        // {
+        //     out_float_conv[j] = h_out[j].to_float();
+        // }
 
         return args[4];
-        //return args[get_output_arg(args.size())];
 
 
-        //for(int i = 0; i < args.size() - 1; i++)
-        //{
-        //    auto first_arg = args[i];
-        //    auto shape     = first_arg.get_shape().lens();
-        //    auto strides     = first_arg.get_shape().strides();
-        //    auto elements  = first_arg.get_shape().elements() * 3;
-        //    std::size_t bytes = first_arg.get_shape().bytes();
-        //    char* dataa    = first_arg.data();
-        //    using migraphx::half;
-        //    //int size = 1 * 2 * 3 * 1 * sizeof(half);
-
-        //    int elem = elements;
-        //    int size = elem * sizeof(half);
-
-        //    std::vector<half> h_out(elem);
-        //    auto status = hipMemcpy(h_out.data(), dataa, bytes, hipMemcpyDeviceToHost);
-        //    if(status != hipSuccess)
-        //        MIGRAPHX_THROW("Failed to launch kernel: " + hip_error(status));
-        //    std::vector<float> float_conv(elem);
-
-        //    for(int j = 0; j < h_out.size(); j++)
-        //    {
-        //        float_conv[j] = h_out[j].to_float();
-        //    }
-        //}
-
-        //int out_elem = 1 * 2 * 3 * 1;
-        //int out_size = out_elem * sizeof(half);
-
-        //std::vector<half> h_output(out_elem);
-        //for(int i = 0; i < h_output.size(); i++)
-        //{
-        //    h_output[i] = half(5.0f);
-        //}
-        //char* out_data = args[3].data();
-        //auto status    = hipMemcpy(out_data, h_output.data(), out_size, hipMemcpyHostToDevice);
 
     }
     else
     {
-        // auto status = hipDeviceSynchronize();
 #if MIGRAPHX_HAS_PMR
         std::array<char, 256> storage;
         std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};

@@ -87,7 +87,7 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         int N = kv_sequence_length; // key/value sequence length
         int D = head_dim;           // head dimension
 
-        const int qn = batch_size*head_num*q_sequence_length*head_dim*3;   
+        const int qn = batch_size * head_num * q_sequence_length * head_dim * 3;   
 
         auto scale              = args[3];        
 
@@ -98,17 +98,10 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         std::vector<kernel_argument> kargs;
 
         hipDeviceptr_t d_q_in    = query.data();
-        hipDeviceptr_t* dd_q_ptr = nullptr;
-        hipMalloc(&dd_q_ptr, sizeof(void*));
-        hipMemcpy(dd_q_ptr, &d_q_in, sizeof(void*), hipMemcpyHostToDevice);
-
-        kargs.emplace_back(dd_q_ptr);
+        kargs.emplace_back(d_q_in);
 
         hipDeviceptr_t d_out_in    = outval.data();
-        hipDeviceptr_t* dd_out_ptr = nullptr;
-        hipMalloc(&dd_out_ptr, sizeof(void*));
-        hipMemcpy(dd_out_ptr, &d_out_in, sizeof(void*), hipMemcpyHostToDevice);
-        kargs.emplace_back(dd_out_ptr);        
+        kargs.emplace_back(d_out_in);      
 
         kargs.push_back(batch_size);
         kargs.push_back(q_sequence_length);
@@ -160,7 +153,6 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         uint32_t v_stride_d2 = stride_d3; // swapped for v
         uint32_t v_stride_d3 = stride_d2;
 
-
         // output strides
         uint32_t output_stride_d0 = outval_strides[0];
         uint32_t output_stride_d1 = outval_strides[1];
@@ -187,35 +179,15 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         kargs.push_back(output_stride_d2);
         kargs.push_back(output_stride_d3);
 
-
         const int grid  = B * H * S * 2;
         const unsigned int grid_size = static_cast<unsigned>(batch_size) * head_num * q_sequence_length * 2u;
 
         const int block = 128;
 
         auto [start, stop] = ctx.get_perf_events();
-        // k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
+
         k.launch(ctx.get_stream().get(), grid, block, kargs, start, stop);
-
-        // hipStreamSynchronize(ctx.get_stream().get());
-
-        // auto out_elements = outval.get_shape().elements();
-        // std::vector<half> h_out(out_elements);
-
-        // auto status = hipMemcpy(h_out.data(), d_out_in, outval_bytes, hipMemcpyDeviceToHost);
-        // if(status != hipSuccess)
-        //     MIGRAPHX_THROW("Failed to launch kernel: " + hip_error(status));
-        // std::vector<float> out_float_conv(out_elements);
-
-        // for(int j = 0; j < h_out.size(); j++)
-        // {
-        //     out_float_conv[j] = h_out[j].to_float();
-        // }
-
         return args[4];
-
-
-
     }
     else
     {

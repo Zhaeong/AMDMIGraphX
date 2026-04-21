@@ -71,8 +71,8 @@ struct mlss_compiler : compiler<mlss_compiler>
 
         float scale = v.at("scale").to<float>();
 
-        std::string_view kernelName = multi_head_attention_unpacked_128_64x64x48_64x48x64_forward_with_strides_fp16_gfx1201.m_kernelName;
-        std::array<std::uint8_t, 52328> binaryData = multi_head_attention_unpacked_128_64x64x48_64x48x64_forward_with_strides_fp16_gfx1201.m_binary;
+        std::string_view kernelName = multi_head_attention_void_double_pointer_packed_qkv_128_64x192x48_64x48x64_forward_with_strides_fp16_gfx1201.m_kernelName;
+        std::array<std::uint8_t, 68968> binaryData = multi_head_attention_void_double_pointer_packed_qkv_128_64x192x48_64x48x64_forward_with_strides_fp16_gfx1201.m_binary;
 
         const auto& binary = binaryData[0];
 

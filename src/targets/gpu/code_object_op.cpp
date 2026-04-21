@@ -67,7 +67,16 @@ static void visit_flatten_args(const std::vector<argument>& args, F f)
 argument
 code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    if(args.size() == 5)
+    // if (kernel_args.size() > 0)
+    // {
+    //     float scale_ka = std::any_cast<float>(kernel_args.at("scale"));
+    //     // std::any_cast<float>(a);
+    //     // float* scale = static_cast<float*>(scale_ka.data);
+    //     // float scaleVal = *scale;
+    //     auto query = args[0];
+
+    // }
+    if(kernel_args.size() > 0)
     {
         auto query = args[0];
 
@@ -108,19 +117,21 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         kargs.push_back(head_num);
         kargs.push_back(head_dim);
 
-        hipDeviceptr_t scale_ptr = scale.data();
+        // hipDeviceptr_t scale_ptr = scale.data();
 
-        auto scale_elements = scale.get_shape().elements();
-        std::size_t scale_bytes = scale.get_shape().bytes();
-        std::vector<float> scale_out(scale_elements);
+        // auto scale_elements = scale.get_shape().elements();
+        // std::size_t scale_bytes = scale.get_shape().bytes();
+        // std::vector<float> scale_out(scale_elements);
 
-        auto status_scale = hipMemcpy(scale_out.data(), scale_ptr, scale_bytes, hipMemcpyDeviceToHost);
-        if(status_scale != hipSuccess)
-            MIGRAPHX_THROW("Failed to launch kernel: " + hip_error(status_scale));
+        // auto status_scale = hipMemcpy(scale_out.data(), scale_ptr, scale_bytes, hipMemcpyDeviceToHost);
+        // if(status_scale != hipSuccess)
+        //     MIGRAPHX_THROW("Failed to launch kernel: " + hip_error(status_scale));
 
         //float scale_in              = 0.5f;
-        kargs.push_back(scale_out[0]);
+        // kargs.push_back(scale_out[0]);
 
+        float scale_ka = std::any_cast<float>(kernel_args.at("scale"));
+        kargs.push_back(scale_ka);
 
         // -----------------------------------------------------------------------
         // Strides for the [B, S, H, 3*D] QKV layout (seq-major, no transpose needed):

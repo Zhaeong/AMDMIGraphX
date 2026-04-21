@@ -30,6 +30,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <map>
+#include <any>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,7 +47,7 @@ struct code_object_op
     std::vector<shape> expected_inputs{};
     shape output{};
     std::int64_t output_arg = -1;
-    // std::map<std::string, kernel_argument> kernel_args{};
+    std::map<std::string, std::any> kernel_args{};
     // std::map<std::string, int> myMap{};
     // std::vector<kernel_argument> kernel_args{};
     kernel k{};

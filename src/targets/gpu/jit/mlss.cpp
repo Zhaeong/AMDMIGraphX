@@ -30,7 +30,7 @@
 #include <migraphx/gpu/code_object_op.hpp>
 // #include <migraphx/gpu/mcd.hpp>
 #include <migraphx/gpu/shaderBinRel.hpp>
-
+#include <any>
 #include <cctype>
 #include <fstream>
 namespace migraphx {
@@ -92,13 +92,9 @@ struct mlss_compiler : compiler<mlss_compiler>
         options.kernel_name = kernel_name;
         options.output_arg  = inputs.size() - 1;
 
-        // std::map<std::string, kernel_argument> kernel_args{};
+        std::map<std::string, std::any> kernel_args{};
 
-        // kernel_args.emplace("Tester", kernel_argument{query_strides[0]});
-
-        // kernel_argument onestride = kernel_argument(query_strides[0]);
-
-        // kernel_args["Tester"] = 
+        kernel_args.emplace("scale", scale);
 
         return code_object_op{value_binary,
                           kernel_name,
@@ -106,8 +102,8 @@ struct mlss_compiler : compiler<mlss_compiler>
                           options.local,
                           options.inputs,
                           options.output,
-                          options.output_arg};
-                        //   kernel_args};
+                          options.output_arg,
+                          kernel_args};
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

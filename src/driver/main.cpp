@@ -939,7 +939,7 @@ struct op : command<op>
     {
         if(show_ops)
         {
-            for(const auto& name : get_operators())
+            for(const auto& name : get_onnx_operators())
                 std::cout << name << std::endl;
         }
         else

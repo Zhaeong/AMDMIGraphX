@@ -275,7 +275,7 @@ void kernel::launch(hipStream_t stream,
     std::size_t size           = kernargs.size();
     if(args.size() == 26)
     {
-         launch_kernel(impl->fun, stream, 1024, 128, kernargs.data(), size, start, stop);
+         launch_kernel(impl->fun, stream, global, local, kernargs.data(), size, start, stop);
     }
     else
     {

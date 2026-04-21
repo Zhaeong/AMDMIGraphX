@@ -92,6 +92,14 @@ struct mlss_compiler : compiler<mlss_compiler>
         options.kernel_name = kernel_name;
         options.output_arg  = inputs.size() - 1;
 
+        // std::map<std::string, kernel_argument> kernel_args{};
+
+        // kernel_args.emplace("Tester", kernel_argument{query_strides[0]});
+
+        // kernel_argument onestride = kernel_argument(query_strides[0]);
+
+        // kernel_args["Tester"] = 
+
         return code_object_op{value_binary,
                           kernel_name,
                           options.global,
@@ -99,6 +107,7 @@ struct mlss_compiler : compiler<mlss_compiler>
                           options.inputs,
                           options.output,
                           options.output_arg};
+                        //   kernel_args};
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

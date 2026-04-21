@@ -69,9 +69,6 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
 {
     if(args.size() == 5)
     {
-        
-
-
         auto query = args[0];
 
         auto query_shape   = query.get_shape().lens();
@@ -87,36 +84,33 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         auto status_query = hipMemcpy(query_out.data(), query.data(), query_bytes, hipMemcpyDeviceToHost);
         if(status_query != hipSuccess)
             MIGRAPHX_THROW("Failed to launch kernel: " + hip_error(status_query));
-        std::vector<float> query_float_conv(query_elements);
-        for(int j = 0; j < query_elements; j++)
-        {
-            query_float_conv[j] = query_out[j].to_float();
-        }
+        // std::vector<float> query_float_conv(query_elements);
+        // for(int j = 0; j < query_elements; j++)
+        // {
+        //     query_float_conv[j] = query_out[j].to_float();
+        // }
 
         // ── Dump packed_q to hpp ────────────────────────────────────────
-        {
-            const size_t query_float_size = query_float_conv.size();
-            std::ofstream f("packed_qkv_static_input.hpp");
-            f << "// Packed Q input" << "\n";
-            f << "// Total elements: " << query_float_size << "\n\n";
-            f << "static const float QKV_data[" << query_float_size << "] = {\n";
-            for (size_t i = 0; i < query_float_size; ++i) {
-                if (i % 8 == 0) f << "    ";
-                char buf[32];
-                std::snprintf(buf, sizeof(buf), "%.8ff", query_float_conv[i]);
-                f << buf;
-                if (i + 1 < query_float_size) f << ",";
-                if ((i + 1) % 8 == 0 || i + 1 == query_float_size)
-                    f << "\n";
-                else
-                    f << "    ";
-            }
-            f << "};\n";
-            std::cout << "packed_q_static written to packed_q_static.hpp (" << query_float_size << " elements)\n";
-        }
-
-
-        
+        // {
+        //     const size_t query_float_size = query_float_conv.size();
+        //     std::ofstream f("packed_qkv_static_input.hpp");
+        //     f << "// Packed Q input" << "\n";
+        //     f << "// Total elements: " << query_float_size << "\n\n";
+        //     f << "static const float QKV_data[" << query_float_size << "] = {\n";
+        //     for (size_t i = 0; i < query_float_size; ++i) {
+        //         if (i % 8 == 0) f << "    ";
+        //         char buf[32];
+        //         std::snprintf(buf, sizeof(buf), "%.8ff", query_float_conv[i]);
+        //         f << buf;
+        //         if (i + 1 < query_float_size) f << ",";
+        //         if ((i + 1) % 8 == 0 || i + 1 == query_float_size)
+        //             f << "\n";
+        //         else
+        //             f << "    ";
+        //     }
+        //     f << "};\n";
+        //     std::cout << "packed_q_static written to packed_q_static.hpp (" << query_float_size << " elements)\n";
+        // }        
 
         int batch_size         = query_shape[0];
         int q_sequence_length  = query_shape[2];
@@ -133,49 +127,14 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         const int qn = batch_size*head_num*q_sequence_length*head_dim*3;   
 
 
-
-        // QKV_data layout: [B, S, H, 3, D]  (seq-major, ONNX packed format)
-        // Kernel expects:  [B, H, S, 3*D]  (head-major, interleaved QKV per token)
-        // Transpose S and H axes while preserving the 3*D inner block.
-        std::vector<half> h_qkv(qn);
-        for (std::size_t b = 0; b < static_cast<std::size_t>(batch_size); ++b)
-        for (std::size_t s = 0; s < static_cast<std::size_t>(q_sequence_length); ++s)
-        for (std::size_t h = 0; h < static_cast<std::size_t>(head_num); ++h)
-        for (int d3 = 0; d3 < 3 * head_dim; ++d3)
-        {
-            // src: [B, S, H, 3*D]
-            std::size_t src = b * (q_sequence_length * head_num * 3 * head_dim)
-                            + s * (head_num * 3 * head_dim)
-                            + h * (3 * head_dim)
-                            + d3;
-            // dst: [B, H, S, 3*D]
-            std::size_t dst = b * (head_num * q_sequence_length * 3 * head_dim)
-                            + h * (q_sequence_length * 3 * head_dim)
-                            + s * (3 * head_dim)
-                            + d3;
-            h_qkv[dst] = query_out[src];
-        }
-
-
-
-
         // // ── GPU: upload contiguous fp16 tensors ───────────────────────────────────
-        // std::vector<half> hq(qn); //, hk(kn), hv(kn);
-        
+        // std::vector<half> hq(qn);        
         // for (int i = 0; i < qn; ++i) hq[i] = migraphx::half(query_float_conv[i]);
-        // for (int i = 0; i < kn; ++i) { hk[i] = migraphx::half(Kc[i]); hv[i] = migraphx::half(Vc[i]); }
-
 
         hipDeviceptr_t dq, dk, dv, dout;
         hipMalloc(&dq,   qn * sizeof(half));
-        // hipMalloc(&dk,   kn * sizeof(half));
-        // hipMalloc(&dv,   kn * sizeof(half));
-        // // HIP_CHECK(hipMalloc(&dout, qn * sizeof(__half)));
-        hipMemcpy(dq,   h_qkv.data(), qn * sizeof(half), hipMemcpyHostToDevice);
-        // hipMemcpy(dk,   hk.data(), kn * sizeof(half), hipMemcpyHostToDevice);
-        // hipMemcpy(dv,   hv.data(), kn * sizeof(half), hipMemcpyHostToDevice);
-        // HIP_CHECK(hipMemcpy(dout, ho.data(), qn * sizeof(__half), hipMemcpyHostToDevice));
 
+        hipMemcpy(dq, query_out.data(), qn * sizeof(half), hipMemcpyHostToDevice);
 
         auto scale              = args[3];        
 
@@ -197,16 +156,12 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         hipDeviceptr_t* dd_out_ptr = nullptr;
         hipMalloc(&dd_out_ptr, sizeof(void*));
         hipMemcpy(dd_out_ptr, &d_out_in, sizeof(void*), hipMemcpyHostToDevice);
-        kargs.emplace_back(dd_out_ptr);
-
-
-        
+        kargs.emplace_back(dd_out_ptr);        
 
         kargs.push_back(batch_size);
         kargs.push_back(q_sequence_length);
         kargs.push_back(head_num);
         kargs.push_back(head_dim);
-
 
         hipDeviceptr_t scale_ptr = scale.data();
 
@@ -222,52 +177,43 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         kargs.push_back(scale_out[0]);
 
 
-        uint32_t qd0 = H * S * D, qd1 = S * D, qd2 = D, qd3 = 1;
-        uint32_t kd0 = H * N * D, kd1 = N * D, kd2 = D, kd3 = 1;
-        uint32_t vd0 = H * N * D, vd1 = N * D, vd2 = 1, vd3 = D; // V d2/d3 swapped per kernel convention
-
-        uint32_t od0 = H * S * D, od1 = S * D, od2 = D, od3 = 1;
-
-
-        uint32_t stride_d0 = static_cast<uint32_t>(head_num * q_sequence_length * 3 * head_dim);
-        uint32_t stride_d1 = static_cast<uint32_t>(q_sequence_length * 3 * head_dim);
-        uint32_t stride_d2 = static_cast<uint32_t>(3 * head_dim);
+        // -----------------------------------------------------------------------
+        // Strides for the [B, S, H, 3*D] QKV layout (seq-major, no transpose needed):
+        //   d0 = S * H * 3*D   (batch stride — same total as head-major since B=1)
+        //   d1 = 3*D           (head stride — heads are innermost, so stride is just 3*D)
+        //   d2 = H * 3*D       (sequence stride — each seq step skips H * 3*D elements)
+        //   d3 = 1             (element stride)
+        // Output has standard [B, H, S, D] layout (no interleaving).
+        // -----------------------------------------------------------------------
+        uint32_t stride_d0 = static_cast<uint32_t>(q_sequence_length * head_num * 3 * head_dim);
+        uint32_t stride_d1 = static_cast<uint32_t>(3 * head_dim);
+        uint32_t stride_d2 = static_cast<uint32_t>(head_num * 3 * head_dim);
         uint32_t stride_d3 = 1u;
 
-        // q: {1, 2, 3, 4}, {4, 12, 24, 1}
+        // q
         uint32_t q_stride_d0 = stride_d0;
         uint32_t q_stride_d1 = stride_d1;
         uint32_t q_stride_d2 = stride_d2;
         uint32_t q_stride_d3 = stride_d3;
 
-        // k: {1, 2, 4, 3}, {4, 12, 1, 24}
+        // k
         uint32_t k_stride_d0 = stride_d0;
         uint32_t k_stride_d1 = stride_d1;
         uint32_t k_stride_d2 = stride_d2;
         uint32_t k_stride_d3 = stride_d3;
 
-        // v: {1, 2, 3, 4}, {4, 12, 24, 1}
+        // v
         uint32_t v_stride_d0 = stride_d0;
         uint32_t v_stride_d1 = stride_d1;
         uint32_t v_stride_d2 = stride_d3; // swapped for v
         uint32_t v_stride_d3 = stride_d2;
 
 
-        // {1, 2, 3, 4}, {24, 12, 4, 1}
-        // uint32_t output_stride_d0 = outval_strides[0];
-        // uint32_t output_stride_d1 = outval_strides[1];
-        // uint32_t output_stride_d2 = outval_strides[2];
-        // uint32_t output_stride_d3 = outval_strides[3];
-
-        uint32_t out_stride_d0 = static_cast<uint32_t>(head_num * q_sequence_length * head_dim);
-        uint32_t out_stride_d1 = static_cast<uint32_t>(q_sequence_length * head_dim);
-        uint32_t out_stride_d2 = static_cast<uint32_t>(head_dim);
-        uint32_t out_stride_d3 = 1u;
-
-        uint32_t output_stride_d0 = out_stride_d0;
-        uint32_t output_stride_d1 = out_stride_d1;
-        uint32_t output_stride_d2 = out_stride_d2;
-        uint32_t output_stride_d3 = out_stride_d3;
+        // output strides
+        uint32_t output_stride_d0 = outval_strides[0];
+        uint32_t output_stride_d1 = outval_strides[1];
+        uint32_t output_stride_d2 = outval_strides[2];
+        uint32_t output_stride_d3 = outval_strides[3];
 
         kargs.push_back(q_stride_d0);
         kargs.push_back(q_stride_d1);

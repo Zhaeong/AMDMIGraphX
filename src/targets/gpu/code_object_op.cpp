@@ -130,7 +130,7 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         //float scale_in              = 0.5f;
         // kargs.push_back(scale_out[0]);
 
-        float scale_ka = std::any_cast<float>(kernel_args.at("scale"));
+        float scale_ka = kernel_args.at("scale").to<float>();
         kargs.push_back(scale_ka);
 
         // -----------------------------------------------------------------------
@@ -191,7 +191,7 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         kargs.push_back(output_stride_d3);
 
         const int grid  = B * H * S * 2;
-        const unsigned int grid_size = static_cast<unsigned>(batch_size) * head_num * q_sequence_length * 2u;
+        // const unsigned int grid_size = static_cast<unsigned>(batch_size) * head_num * q_sequence_length * 2u;
 
         const int block = 128;
 

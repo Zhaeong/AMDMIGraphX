@@ -29,8 +29,7 @@
 // #include <amdmlss/amdmlss_api.h>
 #include <migraphx/gpu/code_object_op.hpp>
 // #include <migraphx/gpu/mcd.hpp>
-#include <migraphx/gpu/shaderBinRel.hpp>
-#include <any>
+#include <migraphx/gpu/shaderBinRel_64x64x48_64x48x64.hpp>
 #include <cctype>
 #include <fstream>
 namespace migraphx {
@@ -71,8 +70,11 @@ struct mlss_compiler : compiler<mlss_compiler>
 
         float scale = v.at("scale").to<float>();
 
-        std::string_view kernelName = multi_head_attention_void_single_pointer_packed_qkv_128_64x192x48_64x48x64_forward_with_strides_fp16_gfx1201.m_kernelName;
-        std::array<std::uint8_t, 68984> binaryData = multi_head_attention_void_single_pointer_packed_qkv_128_64x192x48_64x48x64_forward_with_strides_fp16_gfx1201.m_binary;
+        // std::string_view kernelName = multi_head_attention_void_single_pointer_packed_qkv_128_64x192x48_64x48x64_forward_with_strides_fp16_gfx1201.m_kernelName;
+        // std::array<std::uint8_t, 68984> binaryData = multi_head_attention_void_single_pointer_packed_qkv_128_64x192x48_64x48x64_forward_with_strides_fp16_gfx1201.m_binary;
+
+        std::string_view kernelName = multi_head_attention_void_single_pointer_packed_qkv_128_64x64x48_64x48x64_forward_with_strides_fp16_gfx1201.m_kernelName;
+        std::array<std::uint8_t, 51976> binaryData = multi_head_attention_void_single_pointer_packed_qkv_128_64x64x48_64x48x64_forward_with_strides_fp16_gfx1201.m_binary;
 
         const auto& binary = binaryData[0];
 
@@ -92,7 +94,7 @@ struct mlss_compiler : compiler<mlss_compiler>
         options.kernel_name = kernel_name;
         options.output_arg  = inputs.size() - 1;
 
-        std::map<std::string, std::any> kernel_args{};
+        std::map<std::string, value> kernel_args{};
 
         kernel_args.emplace("scale", scale);
 

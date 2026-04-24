@@ -67,15 +67,6 @@ static void visit_flatten_args(const std::vector<argument>& args, F f)
 argument
 code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    // if (kernel_args.size() > 0)
-    // {
-    //     float scale_ka = std::any_cast<float>(kernel_args.at("scale"));
-    //     // std::any_cast<float>(a);
-    //     // float* scale = static_cast<float*>(scale_ka.data);
-    //     // float scaleVal = *scale;
-    //     auto query = args[0];
-
-    // }
     if(kernel_args.size() > 0)
     {
         auto query = args[0];
@@ -89,6 +80,8 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         int q_sequence_length  = query_shape[2];
         int kv_sequence_length = query_shape[2];
         int head_num           = query_shape[1];        
+
+        // std::cout << "Dispatch MHA B: " <<  batch_size << " Seq: " << q_sequence_length << "head_num" << head_num << "head_dim" << head_dim << std::endl;
 
         int B = batch_size;
         int H = head_num;

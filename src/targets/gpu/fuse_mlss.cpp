@@ -39,10 +39,20 @@ struct mlss_mha
 {
     std::string name() const { return "mlss_mha"; }
 
+    std::optional<shape> output_shape = nullopt;
+
     shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
     {
-        return inputs[0];
+        if(output_shape.has_value())
+            return output_shape.value();
     }
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.output_shape, "output_shape"));
+    }
+
 };
 MIGRAPHX_REGISTER_OP(mlss_mha);
 
@@ -64,37 +74,7 @@ void fuse_mlss::apply(module& m) const
             }
 
             auto inputs = ins->inputs();
-            //if(inputs.size() != 4 && inputs.size() != 7)
-            //{
-            //    continue;
-            //}
 
-            if(inputs.size() == 3) 
-            {
-                auto input_query = inputs[0];
-                auto input_key   = inputs[1];
-                auto input_value = inputs[2];
-
-                auto ins_shape = ins->get_shape().lens();
-                auto ins_strides = ins->get_shape().strides();
-
-                instruction_ref output = m.insert_instruction(
-                    ins, make_op("allocate", {{"shape", to_value(ins->get_shape())}}));
-
-
-                std::vector<instruction_ref> refs;
-                refs.push_back(input_query);
-                refs.push_back(input_key);
-                refs.push_back(input_value);
-                refs.push_back(output);
-
-                m.replace_instruction(ins,
-                                      make_op("gpu::precompile_op",
-                                              {{"op", to_value(make_op("mlss_mha"))},
-                                               {"output_shape", to_value(ins->get_shape())}}),
-                                      refs);
-            }
-            
             if(inputs.size() == 4)
             {
                 auto input_query = inputs[0];
@@ -103,46 +83,54 @@ void fuse_mlss::apply(module& m) const
                 auto input_value = inputs[3];
 
                 shape query_shape  = inputs[0]->get_shape();
-                auto query__len    = query_shape.lens();
-                auto query_strides = query_shape.strides();
+                auto query_len    = query_shape.lens();
 
-                shape::type_t type = ins->get_shape().type();
-
-                auto input_scale_inputs = input_scale->inputs();
-                auto scale_literal      = input_scale_inputs[0];
-
-                // Scale andd device name here in case we want to call mlss get caps in this
-                // function
-                const half* scale_f = nullptr;
-                if(scale_literal->name() == "@literal")
+                if(query_len[0] == 1 && query_len[1] == 8 && query_len[2] == 4096 &&
+                   query_len[3] == 40)
                 {
-                    const char* scale = scale_literal->get_literal().data();
-                    scale_f           = reinterpret_cast<const half*>(scale);
+
+                    auto query_strides = query_shape.strides();
+
+                    shape::type_t type = ins->get_shape().type();
+
+                    auto input_scale_inputs = input_scale->inputs();
+                    auto scale_literal      = input_scale_inputs[0];
+
+                    // Scale andd device name here in case we want to call mlss get caps in this
+                    // function
+                    const half* scale_f = nullptr;
+                    if(scale_literal->name() == "@literal")
+                    {
+                        const char* scale = scale_literal->get_literal().data();
+                        scale_f           = reinterpret_cast<const half*>(scale);
+                    }
+                    float connvv = static_cast<float>(*scale_f);
+
+                    const auto& device_name =
+                        ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
+
+                    // instruction_ref output = m.insert_instruction(
+                    //     ins, make_op("allocate", {{"shape", to_value(ins->get_shape())}}));
+
+
+                    std::vector<instruction_ref> refs;
+                    refs.push_back(input_query);
+                    refs.push_back(input_key);
+                    refs.push_back(input_value);
+                    refs.push_back(scale_literal);
+
+                    // refs.push_back(output);
+
+                    // m.replace_instruction(ins,
+                    //                       make_op("gpu::precompile_op",
+                    //                               {{"op", to_value(make_op("mlss_mha"))},
+                    //                                {"output_shape", to_value(ins->get_shape())}}),
+                    //                       refs);
+
+                    m.replace_instruction(ins,
+                                          make_op("mlss_mha", {{"output_shape", to_value(ins->get_shape())}}),
+                                          refs);
                 }
-                float connvv = static_cast<float>(*scale_f);
-
-                const auto& device_name =
-                    ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
-
-                instruction_ref output = m.insert_instruction(
-                    ins, make_op("allocate", {{"shape", to_value(ins->get_shape())}}));
-
-                auto one = m.add_literal(7);
-
-
-                std::vector<instruction_ref> refs;
-                refs.push_back(input_query);
-                refs.push_back(input_key);
-                refs.push_back(input_value);
-                refs.push_back(scale_literal);
-                //refs.push_back(one);
-                refs.push_back(output);
-
-                m.replace_instruction(ins,
-                                      make_op("gpu::precompile_op",
-                                              {{"op", to_value(make_op("mlss_mha"))},
-                                               {"output_shape", to_value(ins->get_shape())}}),
-                                      refs);
             }
         }        
     }
